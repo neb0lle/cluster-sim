@@ -60,3 +60,52 @@ def register_node():
         ), 200
     else:
         return jsonify({"message": f"Node '{node_id}' already exists."}), 409
+
+
+# View all nodes (with auto health check + rescheduling)
+@app.route("/list_nodes", methods=["GET"])
+def list_nodes():
+    return jsonify(store.get_all_nodes(pod_store))
+
+
+# Heartbeat from node containers
+@app.route("/heartbeat", methods=["POST"])
+def heartbeat():
+    data = request.get_json()
+    node_id = data.get("node_id")
+
+    if not node_id:
+        return jsonify({"error": "Missing node_id"}), 400
+
+    store.update_heartbeat(node_id)
+    return jsonify({"message": f"Heartbeat received from '{node_id}'"}), 200
+
+
+# Launch a new pod, assign to healthy node
+@app.route("/launch_pod", methods=["POST"])
+def launch_pod():
+    data = request.get_json()
+    pod_id = data.get("pod_id")
+    cpu_required = data.get("cpu_required")
+
+    if not pod_id or cpu_required is None:
+        return jsonify({"error": "Missing pod_id or cpu_required"}), 400
+
+    if pod_store.pod_exists(pod_id):
+        return jsonify({"error": f"Pod '{pod_id}' already exists"}), 409
+
+    result = store.schedule_pod(pod_id, cpu_required)
+    if result:
+        pod_store.add_pod(pod_id, cpu_required, result["assigned_node"])
+        return jsonify(
+            {
+                "message": f"Pod '{pod_id}' scheduled on node '{result['assigned_node']}'",
+                "node_id": result["assigned_node"],
+            }
+        ), 200
+    else:
+        return jsonify({"error": "No healthy node has enough CPU"}), 503
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
