@@ -19,3 +19,18 @@ def register():
         print(res.text)
     except Exception as e:
         print(f"Registration failed: {e}")
+
+
+def send_heartbeat():
+    try:
+        res = requests.post(f"{api_url}/heartbeat", json={"node_id": node_id})
+        print(f"[{node_id}] Heartbeat sent.")
+    except Exception as e:
+        print(f"[{node_id}] Heartbeat failed: {e}")
+
+
+if __name__ == "__main__":
+    register()
+    while True:
+        send_heartbeat()
+        time.sleep(5)
